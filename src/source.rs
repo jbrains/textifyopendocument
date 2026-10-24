@@ -61,6 +61,7 @@ mod tests {
     use crate::args::SubstMode;
     use std::fs;
     use std::io::{Cursor, Read, Write};
+    use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
