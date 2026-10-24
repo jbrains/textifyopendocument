@@ -8,15 +8,31 @@
  * version 2 as published by the Free Software Foundation
  */
 
+use textifyopendocument::args::{self, Action};
+
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("--version") {
-        println!("textifyopendocument 0.1.0");
-        std::process::exit(0);
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    match args::parse_args(&argv) {
+        Ok(Action::Help) => {
+            println!("usage: textifyopendocument [OPTIONS] FILENAME");
+            std::process::exit(0);
+        }
+        Ok(Action::Version) => {
+            println!("textifyopendocument 0.1.0");
+            std::process::exit(0);
+        }
+        Ok(Action::ShowEncoding) => {
+            // placeholder; Task 8 replaces this with real codeset detection
+            println!("UTF-8");
+            std::process::exit(0);
+        }
+        Ok(Action::Run(_config)) => {
+            eprintln!("textifyopendocument: not yet implemented");
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("textifyopendocument: {:?}", err);
+            std::process::exit(1);
+        }
     }
-    if args.first().map(String::as_str) == Some("--help") {
-        println!("usage: textifyopendocument [OPTIONS] FILENAME");
-        std::process::exit(0);
-    }
-    std::process::exit(0);
 }
