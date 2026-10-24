@@ -28,6 +28,7 @@ pub fn convert<R: BufRead, W: Write>(
     let mut in_body = false;
     let mut skip_depth: usize = 0;
     let mut heading: Option<(String, u8)> = None;
+    let mut frame_names: Vec<Option<String>> = Vec::new();
 
     loop {
         if emitter.limit_reached() {
@@ -47,6 +48,16 @@ pub fn convert<R: BufRead, W: Write>(
                     // inside a skipped subtree
                 } else if name.as_ref() == b"office:body" {
                     in_body = true;
+                } else if name.as_ref() == b"draw:frame" {
+                    frame_names.push(attr_value(e, b"draw:name"));
+                } else if name.as_ref() == b"draw:image" {
+                    if in_body {
+                        if let Some(Some(frame_name)) = frame_names.last() {
+                            emitter
+                                .emit_image_marker(frame_name)
+                                .map_err(ConvertError::Io)?;
+                        }
+                    }
                 } else if name.as_ref() == b"text:h" {
                     let level = heading_level(e);
                     heading = Some((String::new(), level));
@@ -64,6 +75,14 @@ pub fn convert<R: BufRead, W: Write>(
                 let name = e.name();
                 if skip_depth > 0 {
                     // inside a skipped subtree
+                } else if name.as_ref() == b"draw:image" {
+                    if in_body {
+                        if let Some(Some(frame_name)) = frame_names.last() {
+                            emitter
+                                .emit_image_marker(frame_name)
+                                .map_err(ConvertError::Io)?;
+                        }
+                    }
                 } else if name.as_ref() == b"text:h" {
                     emitter
                         .emit_heading(heading_level(e), "")
@@ -90,6 +109,8 @@ pub fn convert<R: BufRead, W: Write>(
                     // inside a skipped subtree
                 } else if name.as_ref() == b"office:body" {
                     in_body = false;
+                } else if name.as_ref() == b"draw:frame" {
+                    frame_names.pop();
                 } else if name.as_ref() == b"text:p" {
                     emitter
                         .emit_paragraph_break()
@@ -250,5 +271,61 @@ mod tests {
             convert_str("</unclosed>"),
             Err(ConvertError::Xml(_))
         ));
+    }
+
+    #[test]
+    fn frame_text_flows() {
+        let xml = doc(
+            "<draw:frame draw:name=\"pic1\">\
+             <draw:text-box><text:p>Caption</text:p></draw:text-box>\
+             </draw:frame>",
+        );
+        assert_eq!(convert_str(&xml).unwrap(), "Caption\n");
+    }
+
+    #[test]
+    fn image_marker_at_image() {
+        let xml = doc(
+            "<draw:frame draw:name=\"pic1\">\
+             <draw:text-box><text:p>Caption</text:p></draw:text-box>\
+             <draw:image/>\
+             </draw:frame>",
+        );
+        assert_eq!(
+            convert_str(&xml).unwrap(),
+            "Caption\n\n[-- Image: pic1 --]\n"
+        );
+    }
+
+    #[test]
+    fn no_name_no_marker() {
+        let xml = doc(
+            "<draw:frame>\
+             <draw:text-box><text:p>Caption</text:p></draw:text-box>\
+             <draw:image/>\
+             </draw:frame>",
+        );
+        assert_eq!(convert_str(&xml).unwrap(), "Caption\n");
+    }
+
+    #[test]
+    fn nested_frames_inner_name_wins() {
+        let xml = doc(
+            "<draw:frame draw:name=\"outer\">\
+             <draw:frame draw:name=\"inner\"><draw:image/></draw:frame>\
+             </draw:frame>",
+        );
+        let out = convert_str(&xml).unwrap();
+        assert!(out.contains("[-- Image: inner --]"), "got: {:?}", out);
+        assert!(!out.contains("outer"), "got: {:?}", out);
+    }
+
+    #[test]
+    fn frame_text_without_body_gating() {
+        let xml = "<office:document>\
+                   <draw:frame draw:name=\"x\"><draw:image/></draw:frame>\
+                   <office:body/>\
+                   </office:document>";
+        assert_eq!(convert_str(xml).unwrap(), "");
     }
 }
