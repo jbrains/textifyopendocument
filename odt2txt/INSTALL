@@ -1,0 +1,50 @@
+
+odt2txt is known to compile on Linux, Windows (Cygwin and native),
+Solaris, FreeBSD, OpenBSD and NetBSD.
+
+To build odt2txt you need GNU make on all platforms.  On platforms
+other than Linux and Cygwin, it is usually called "gmake".
+
+You also need libzip (https://nih.at/libzip/) including its
+development headers.
+
+Linux:
+	Just run "make" in the source directory.
+
+Solaris:
+	I have test-compiled odt2txt on Solaris 9 (sparc) and
+	Solaris 10 (x86), both with gcc and the Sun C Compiler.
+
+FreeBSD/OpenBSD:
+	You need to install libiconv from the ports.
+
+	The regex library that comes with FreeBSD is extremely slow
+	on my FreeBSD system (5.3, i386).
+
+Mac OS X:
+	libiconv has to be installed separately. The Makefile contains
+	support for a MacPorts installation:
+
+	- install MacPorts http://www.macports.org/
+	- install libiconv in MacPorts
+	  $ sudo port install libiconv
+	- run "make" in the source directory
+
+NetBSD:
+	NetBSD > 2.0 comes with an iconv implementation, it has everything
+	you need.
+
+HP-UX:
+	If zlib is not already installed on the system, build it.  Then
+	build odt2txt with "gmake ZLIB_DIR=/path/to/zlib"
+
+Windows (Cygwin):
+	You need to install libiconv.
+
+Windows (mingw32):
+	See win32/Dockerfile for a recipe build a windows package.
+
+Windows (msys):
+	You need to specify the arch type.
+        -run make ARCH=32
+        -run make ARCH=64

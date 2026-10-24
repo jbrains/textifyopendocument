@@ -78,9 +78,10 @@ byte-for-byte output compatibility with the C tool.
   > original's portability knowledge from reach — the C reference remains in
   > this repository.
 
-- **Repository layout:** new git repository `textifyopendocument`. The Human
-  will rearrange files so the original `odt2txt` repository becomes a
-  subdirectory of this project, kept as reference. `acceptance-tests/` holds
+- **Repository layout:** new git repository `textifyopendocument`. The
+  original `odt2txt` sources live in `odt2txt/` as a plain copy (no git
+  history), kept as reference; the snapshot commit is recorded in
+  `odt2txt/SNAPSHOT.md`. `acceptance-tests/` holds
   hand-supplied real-world documents (the Final Boss), which are gitignored,
   not committed.
 - **Acceptance testing:** the Human supplies exactly one acceptance file (the
@@ -129,7 +130,7 @@ improvements over the C version.
 | `<text:p [^>]*>` → "\n\n" **and** `</text:p>` → "\n\n" | On `text:p` end, emit one blank line (`\n\n`) | C emits at both start and end and relies on a later `\n{3,}`→`\n\n` pass to fix the double-emission; the parser emits once. Note: C only matched `<text:p ` *with a literal space* — a bug not replicated |
 | `<text:tab/>` → "  " | On `text:tab`, emit two spaces | |
 | `<text:line-break/>` → "\n" | On `text:line-break`, emit `\n` | |
-| `<draw:frame draw:name="N">…` → `[-- Image: N --]` | On `draw:frame` with a `draw:name`, emit `[-- Image: N --]` and skip the subtree | C replaced only the start tag and let the subtree leak through other rules |
+| `<draw:frame draw:name="N">…` → `[-- Image: N --]` | Do **not** skip `draw:frame` subtrees: emit any text inside them normally; when an image element sits inside a named frame, emit `[-- Image: N --]` at that spot | Frames contain text boxes — in `.odp`, nearly all slide text lives there. C replaced only the start tag and leaked the subtree through other rules |
 | `<[^>]*>` → "" (strip all tags) | Not needed at all — the parser never emits markup | The biggest single win |
 | `&apos;` `&amp;` `&quot;` `&gt;` `&lt;` | The XML parser decodes all entities, including numeric references | Strict improvement: C decoded only 5 entities |
 | `\n +` → "\n" (strip indentation) | Maintain "at start of line" state; drop whitespace there | Cheap boolean flag instead of a pass |
@@ -137,7 +138,7 @@ improvements over the C version.
 | `^\n+` → "" | Emit nothing until the first non-newline output | |
 | `\n{2,}$` → "\n" | At end of output, ensure at most one trailing newline | |
 | ` +\n` → "\n" (trailing spaces) | Strip trailing spaces per line while emitting (or during wrap) | |
-| 36 Unicode look-alike substitutions | Char-by-char mapping table applied to emitted text | O(1) per char instead of 36 full-buffer passes. Fix the C table's duplicate/bogus bullet entry (0x2023) |
+| 36 Unicode look-alike substitutions | Char-by-char mapping table applied to emitted text (see Appendix) | O(1) per char instead of 36 full-buffer passes. Fix the C table's duplicate/bogus bullet entry (0x2023) |
 | `wrap()` (width, default 65, `-1` = off) | Streaming line wrapper at emission or as a single line pass | Unicode-aware; keep default 65 (the documented default; the C code's 63 is a bug) |
 | iconv conversion | encoding_rs conversion, applied streaming | See "Encoding" below |
 
@@ -164,7 +165,9 @@ Single streaming pipeline; no document tree is built:
 Because every stage is streaming, truncation is natural:
 
 - **`--limit-chars=N`** (new): stop emitting once N characters of output have
-  been produced, then finalize and exit. No further parsing happens.
+  been produced, then finalize and exit. No further parsing happens. N counts
+  Unicode scalar values of the final text, newlines included (not bytes, not
+  grapheme clusters).
 - **`--limit-time=N`** (new): deadline of N milliseconds; check the clock
   periodically (e.g., every chunk of events/bytes) and stop early. If both
   limits are given, whichever fires first wins.
@@ -228,9 +231,60 @@ textifyopendocument/
   Cargo.toml, src/, tests/
   acceptance-tests/          # Final Boss goes here (gitignored)
   docs/superpowers/specs/    # this document
-  odt2txt/                   # C reference repo (moved here by the Human)
+  odt2txt/                   # C reference: plain copy, snapshot in SNAPSHOT.md
   AUTHORS, README.md, LICENSE  # already in place
 ```
+
+## Appendix: look-alike substitution table
+
+Extracted from the C source (`odt2txt.c`, `substs[]`). The C tool inserts
+HTML-entity-encoded strings (`&lt;`, `&apos;`, …) and relies on a *later*
+pass to decode them; this design emits the decoded text directly — one more
+pass eliminated. The C table's entry for U+2023 mistakenly repeats the
+U+2022 codepoint; it is corrected here.
+
+| Codepoint | Char | Emitted text |
+|---|---|---|
+| U+00A0 | no-break space | ` ` |
+| U+00A9 | © | `(c)` |
+| U+00AB | « | `<<` |
+| U+00AD | soft hyphen | `-` |
+| U+00AE | ® | `(r)` |
+| U+00BB | » | `>>` |
+| U+00BC | ¼ | `1/4` |
+| U+00BD | ½ | `1/2` |
+| U+00BE | ¾ | `3/4` |
+| U+00C4 | Ä | `Ae` |
+| U+00D6 | Ö | `Oe` |
+| U+00DC | Ü | `Ue` |
+| U+00DF | ß | `ss` |
+| U+00E4 | ä | `ae` |
+| U+00F6 | ö | `oe` |
+| U+00FC | ü | `ue` |
+| U+2010 | ‐ | `-` |
+| U+2011 | ‑ | `-` |
+| U+2012 | ‒ | `-` |
+| U+2013 | – | `-` |
+| U+2014 | — | `--` |
+| U+2015 | ― | `--` |
+| U+2018 | ' | `` ` `` |
+| U+2019 | ' | `'` |
+| U+201A | ‚ | `,` |
+| U+201B | ‛ | `` ` `` |
+| U+201C | " | ```` `` ```` |
+| U+201D | " | `''` |
+| U+201E | „ | `,,` |
+| U+2022 | • | `o ` |
+| U+2023 | ‣ | `< ` |
+| U+2025 | ‥ | `..` |
+| U+2026 | … | `...` |
+| U+2030 | ‰ | `o/oo` |
+| U+2039 | ‹ | `<` |
+| U+203A | › | `>` |
+| U+20AC | € | `EUR` |
+| U+2190 | ← | `<-` |
+| U+2192 | → | `->` |
+| U+2194 | ↔ | `<->` |
 
 ## Future ideas (recorded, not in scope)
 
