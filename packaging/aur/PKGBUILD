@@ -9,7 +9,7 @@ url="https://codeberg.org/jbrains/textifyopendocument"
 license=('GPL2')
 makedepends=('cargo')
 source=("https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
-b2sums=('SKIP')
+b2sums=('10b627f1bfbcd3f13b836f94d1e9908add669c74efb473c0b09eeddef9a77b09f73363987e917b924c9a9249f4fdcf40d9d5307192b92057c521cfa6036ab4dd')
 
 build() {
   cd "$pkgname-$pkgver"

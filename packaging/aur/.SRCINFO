@@ -1,0 +1,13 @@
+pkgbase = textifyopendocument
+	pkgdesc = Fast OpenDocument (odt/ods/odp) to plain text converter for previews
+	pkgver = 0.1.1
+	pkgrel = 1
+	url = https://codeberg.org/jbrains/textifyopendocument
+	arch = x86_64
+	arch = aarch64
+	license = GPL2
+	makedepends = cargo
+	source = https://static.crates.io/crates/textifyopendocument/textifyopendocument-0.1.1.crate
+	b2sums = 10b627f1bfbcd3f13b836f94d1e9908add669c74efb473c0b09eeddef9a77b09f73363987e917b924c9a9249f4fdcf40d9d5307192b92057c521cfa6036ab4dd
+
+pkgname = textifyopendocument
