@@ -10,5 +10,6 @@
 
 pub mod args;
 pub mod emit;
+pub mod source;
 pub mod subst;
 
