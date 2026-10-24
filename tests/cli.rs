@@ -84,8 +84,11 @@ fn limit_time_truncates() {
         elapsed
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
+    // Full output is ~1M chars; release builds parse ~12k chars within the
+    // 1 ms window, debug builds ~1.7k. Any value comfortably below the full
+    // length proves truncation without depending on build speed.
     assert!(
-        stdout.chars().count() < 10_000,
+        stdout.chars().count() < 100_000,
         "expected early truncation, got {} chars",
         stdout.chars().count()
     );
