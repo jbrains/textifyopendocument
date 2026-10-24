@@ -1,0 +1,70 @@
+.TH TEXTIFYOPENDOCUMENT "1" "2026-10-24" "textifyopendocument 0.1.0" "User Commands"
+.SH NAME
+textifyopendocument \- fast OpenDocument to plain text converter for previews
+.SH SYNOPSIS
+.B textifyopendocument
+[\fIOPTIONS\fR] \fIFILENAME\fR
+.SH DESCRIPTION
+textifyopendocument extracts plain text from OpenDocument files (text,
+spreadsheets, presentations) using streaming XML parsing. It is designed for
+file-manager previews: a single pass replaces the regular-expression pipeline
+of the original odt2txt, which became extremely slow on large documents.
+.PP
+The FILENAME argument is mandatory. Output goes to standard output unless
+\fB\-\-output\fR is given.
+.SH OPTIONS
+.TP
+\fB\-\-width\fR=\fIWIDTH\fR
+Wrap text lines after \fIWIDTH\fR characters. The default is 65. A word
+longer than the width is never split. If \fIWIDTH\fR is \-1, no lines are
+broken. Values below 3 (other than \-1) are invalid.
+.TP
+\fB\-\-output\fR=\fIFILE\fR
+Write output to \fIFILE\fR instead of standard output.
+.TP
+\fB\-\-raw\fR
+Print the raw content.xml of the document, unprocessed.
+.TP
+\fB\-\-raw\-input\fR
+Treat the input file as a raw XML file (fodt, fods, ...) instead of a zip.
+.TP
+\fB\-\-encoding\fR=\fIX\fR
+Convert the output to encoding \fIX\fR unconditionally. Without this option,
+the terminal encoding is detected from LC_ALL, LC_CTYPE, then LANG,
+defaulting to UTF\-8. With \fB\-\-encoding\fR=\fIshow\fR, print the encoding
+that would be used and exit.
+.TP
+\fB\-\-subst\fR=\fISUBST\fR
+Select which non\-ascii characters are replaced by ascii look\-a\-likes.
+Valid values are \fIall\fR (replace every character for which a
+substitution is known), \fIsome\fR (replace characters the output encoding
+cannot represent; the default), and \fInone\fR (replace nothing; characters
+the output encoding cannot represent become question marks).
+.TP
+\fB\-\-limit\-chars\fR=\fIN\fR
+Truncated preview mode: stop after \fIN\fR characters of output (Unicode
+scalar values, newlines included) and skip converting the rest of the file.
+.TP
+\fB\-\-limit\-time\fR=\fIN\fR
+Truncated preview mode: stop converting after \fIN\fR milliseconds. If both
+limits are given, whichever fires first wins.
+.TP
+\fB\-\-force\fR
+Accepted for compatibility with odt2txt; ignored.
+.TP
+\fB\-\-version\fR
+Show version information.
+.TP
+\fB\-\-help\fR
+Show this help.
+.SH ATTRIBUTION
+textifyopendocument reimagines odt2txt by Dennis Stosberg
+(https://github.com/dstosberg/odt2txt), whose tool and whose advice to
+replace the regular-expression approach with XML parsing inspired this
+project.
+.SH COPYRIGHT
+Copyright \(co 2026 jbrains
+.PP
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License, version 2 as published by
+the Free Software Foundation.

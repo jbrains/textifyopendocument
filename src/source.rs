@@ -10,7 +10,6 @@
 
 use std::io::BufRead;
 use std::io::BufReader;
-use std::path::PathBuf;
 
 use crate::args::Config;
 
