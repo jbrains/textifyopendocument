@@ -21,7 +21,11 @@ fn version_flag_prints_name_and_exits_zero() {
     let out = bin().arg("--version").output().unwrap();
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("textifyopendocument"));
+    assert!(
+        stdout.contains(concat!("textifyopendocument ", env!("CARGO_PKG_VERSION"))),
+        "--version printed {:?}, expected the crate version",
+        stdout
+    );
 }
 
 #[test]

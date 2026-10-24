@@ -15,7 +15,7 @@ fn main() {
     match args::parse_args(&argv) {
         Ok(Action::Help) => {
             print!(
-                "textifyopendocument 0.1.0\n\
+                "textifyopendocument {}\n\
                  Converts OpenDocument files (text, spreadsheets, presentations) to plain text.\n\n\
                  Syntax:   textifyopendocument [OPTIONS] FILENAME\n\n\
                  Options:  --width=N       Wrap lines after N characters. Default: 65.\n\
@@ -31,12 +31,13 @@ fn main() {
                  \x20         --limit-time=N  Truncated preview: stop after N milliseconds\n\
                  \x20         --force         Accepted for compatibility with odt2txt; ignored\n\
                  \x20         --version       Show version information\n\
-                 \x20         --help          Show this help\n"
+                 \x20         --help          Show this help\n",
+                env!("CARGO_PKG_VERSION")
             );
             std::process::exit(0);
         }
         Ok(Action::Version) => {
-            println!("textifyopendocument 0.1.0");
+            println!("textifyopendocument {}", env!("CARGO_PKG_VERSION"));
             std::process::exit(0);
         }
         Ok(Action::ShowEncoding) => {
