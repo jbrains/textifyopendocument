@@ -25,9 +25,11 @@ fn main() {
             println!("{}", textifyopendocument::encoding::detect_codeset().name());
             std::process::exit(0);
         }
-        Ok(Action::Run(_config)) => {
-            eprintln!("textifyopendocument: not yet implemented");
-            std::process::exit(1);
+        Ok(Action::Run(config)) => {
+            if let Err(err) = textifyopendocument::run(&config) {
+                eprintln!("textifyopendocument: {}", err);
+                std::process::exit(1);
+            }
         }
         Err(err) => {
             eprintln!("textifyopendocument: {:?}", err);
