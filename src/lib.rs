@@ -22,7 +22,7 @@ pub use args::{Config, SubstMode};
 
 use convert::ConvertError;
 use emit::{EmitConfig, Emitter};
-use encoding::{detect_codeset, resolve_encoding, transcode, EncodingError};
+use encoding::{detect_codeset, resolve_encoding, transcode, Charset, EncodingError};
 use source::SourceError;
 
 #[derive(Debug)]
@@ -65,6 +65,8 @@ impl std::fmt::Display for Error {
             }
             Error::Source(SourceError::Io(e)) => write!(f, "{}", e),
             Error::Convert(ConvertError::Xml(e)) => write!(f, "invalid XML: {}", e),
+            Error::Convert(ConvertError::Malformed(m)) => write!(f, "invalid XML: {}", m),
+            Error::Convert(ConvertError::Truncated) => write!(f, "truncated XML"),
             Error::Convert(ConvertError::Io(e)) => write!(f, "{}", e),
             Error::Encoding(EncodingError::Unknown(label)) => {
                 write!(f, "unknown encoding: {}", label)
@@ -80,16 +82,31 @@ pub fn run(config: &Config) -> Result<(), Error> {
 }
 
 pub fn run_into(config: &Config, out: &mut dyn Write) -> Result<(), Error> {
+    // The time deadline starts before any file work so it bounds
+    // opening and decompression too.
+    let deadline = config
+        .limit_time_ms
+        .map(|ms| Instant::now() + Duration::from_millis(ms));
+
     let target = match &config.encoding {
-        Some(label) => resolve_encoding(label)?,
+        Some(label) => match resolve_encoding(label) {
+            Ok(cs) => cs,
+            Err(_) => {
+                eprintln!(
+                    "textifyopendocument: warning: unknown encoding {}, using UTF-8",
+                    label
+                );
+                Charset::Utf8
+            }
+        },
         None => detect_codeset(),
     };
 
-    let mut reader = source::open_content_xml(config)?;
+    let mut source = source::open_source(config)?;
 
     if config.raw {
         let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes)?;
+        source.content_xml()?.read_to_end(&mut bytes)?;
         out.write_all(&bytes)?;
         return Ok(());
     }
@@ -97,17 +114,18 @@ pub fn run_into(config: &Config, out: &mut dyn Write) -> Result<(), Error> {
     let emit_cfg = EmitConfig {
         width: (config.width != -1).then_some(config.width as usize),
         limit_chars: config.limit_chars,
-        deadline: config
-            .limit_time_ms
-            .map(|ms| Instant::now() + Duration::from_millis(ms)),
+        deadline,
         subst: config.subst.clone(),
         encoding: target,
     };
     let mut emitter = Emitter::new(Vec::new(), emit_cfg);
-    convert::convert(&mut quick_xml::Reader::from_reader(reader), &mut emitter)?;
+    let convert_result = {
+        let reader = source.content_xml()?;
+        convert::convert(&mut quick_xml::Reader::from_reader(reader), &mut emitter)
+    };
     let utf8 = emitter.finish()?;
 
-    let bytes = if target == encoding_rs::UTF_8 {
+    let bytes = if target == Charset::Utf8 {
         utf8
     } else {
         transcode(target, &utf8)
@@ -120,5 +138,9 @@ pub fn run_into(config: &Config, out: &mut dyn Write) -> Result<(), Error> {
         }
         None => out.write_all(&bytes)?,
     }
+
+    // Text emitted before a conversion error stays emitted; report the
+    // error only after writing it out.
+    convert_result?;
     Ok(())
 }

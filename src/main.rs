@@ -11,7 +11,7 @@
 use textifyopendocument::args::{self, Action};
 
 fn main() {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
     match args::parse_args(&argv) {
         Ok(Action::Help) => {
             print!(

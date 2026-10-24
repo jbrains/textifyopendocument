@@ -12,14 +12,20 @@ use std::io::{self, Write};
 use std::time::Instant;
 
 use crate::args::SubstMode;
+use crate::encoding::Charset;
 use crate::subst::subst_for;
+
+/// Upper bound on spaces emitted for one `text:c`/`text:tab` request.
+/// Prevents absurd allocations from hostile counts; beyond this the
+/// repetition is truncated (sensible for a preview tool).
+pub const MAX_SPACES: usize = 4096;
 
 pub struct EmitConfig {
     pub width: Option<usize>,       // None = no wrapping
     pub limit_chars: Option<usize>, // None = unlimited
     pub deadline: Option<Instant>,  // None = unlimited
     pub subst: SubstMode,
-    pub encoding: &'static encoding_rs::Encoding, // for SubstMode::Some checks
+    pub encoding: Charset, // for SubstMode::Some checks
 }
 
 pub struct Emitter<W: Write> {
@@ -53,7 +59,19 @@ impl<W: Write> Emitter<W> {
             return Ok(());
         }
         let mut word = String::new();
+        let mut since_deadline_check = 0usize;
         for c in text.chars() {
+            if self.limit_reached {
+                break;
+            }
+            since_deadline_check += 1;
+            if since_deadline_check >= 4096 {
+                since_deadline_check = 0;
+                if self.deadline_passed() {
+                    self.limit_reached = true;
+                    break;
+                }
+            }
             for rc in self.replace_char(c).chars() {
                 match rc {
                     '\n' => {
@@ -94,7 +112,20 @@ impl<W: Write> Emitter<W> {
             self.limit_reached = true;
             return Ok(());
         }
-        self.emit_text(&" ".repeat(n))
+        let n = n.min(MAX_SPACES);
+        if self.pending_newlines > 0 {
+            self.flush_pending_newlines()?;
+        }
+        if self.line_len == 0 || !self.wrote_content {
+            return Ok(()); // start-of-line spaces are dropped
+        }
+        for _ in 0..n {
+            if self.limit_reached {
+                break;
+            }
+            self.space_pending += 1;
+        }
+        Ok(())
     }
 
     pub fn emit_heading(&mut self, level: u8, text: &str) -> io::Result<()> {
@@ -139,6 +170,15 @@ impl<W: Write> Emitter<W> {
         self.chars_written
     }
 
+    /// Re-check the deadline; sets limit_reached when it has passed.
+    /// Callers that consume many events without emitting (e.g. the
+    /// conversion loop) call this periodically so time limits hold.
+    pub fn check_limits(&mut self) {
+        if self.deadline_passed() {
+            self.limit_reached = true;
+        }
+    }
+
     fn deadline_passed(&self) -> bool {
         self.cfg.deadline.map_or(false, |d| Instant::now() >= d)
     }
@@ -152,9 +192,7 @@ impl<W: Write> Emitter<W> {
                 None => Cow::Owned(c.to_string()),
             },
             SubstMode::Some => {
-                let mut buf = [0u8; 4];
-                let (_, _, had_errors) = self.cfg.encoding.encode(c.encode_utf8(&mut buf));
-                if !had_errors {
+                if self.cfg.encoding.can_encode(c) {
                     Cow::Owned(c.to_string())
                 } else {
                     match subst_for(c) {
@@ -226,6 +264,9 @@ impl<W: Write> Emitter<W> {
         self.out.write_all(b"\n")?;
         self.chars_written += 1;
         self.line_len = 0;
+        if self.chars_written >= self.cfg.limit_chars.unwrap_or(usize::MAX) {
+            self.limit_reached = true;
+        }
         Ok(())
     }
 
@@ -245,6 +286,9 @@ impl<W: Write> Emitter<W> {
         self.chars_written += 1;
         self.line_len += 1;
         self.wrote_content = true;
+        if self.chars_written >= self.cfg.limit_chars.unwrap_or(usize::MAX) {
+            self.limit_reached = true;
+        }
         Ok(())
     }
 }
@@ -261,7 +305,7 @@ mod tests {
             limit_chars: None,
             deadline: None,
             subst: SubstMode::None,
-            encoding: encoding_rs::UTF_8,
+            encoding: crate::encoding::Charset::Utf8,
         }
     }
 
@@ -424,7 +468,7 @@ mod tests {
         // represent: '€' and 'ä' via the table, '☃' via '?'.
         let mut c = cfg();
         c.subst = SubstMode::Some;
-        c.encoding = encoding_rs::KOI8_R; // lacks €, ä, ☃
+        c.encoding = crate::encoding::Charset::Other(encoding_rs::KOI8_R); // lacks €, ä, ☃
         let out = emit_with(c, |e| {
             e.emit_text("€ä☃").unwrap();
         });
@@ -461,5 +505,50 @@ mod tests {
             e.emit_text("a😀 b").unwrap();
         });
         assert_eq!(out, "a😀 b"); // emoji counts as one column
+    }
+
+    #[test]
+    fn multibyte_char_limit_truncates_mid_word() {
+        let mut c = cfg();
+        c.limit_chars = Some(3);
+        let mut e = Emitter::new(Vec::new(), c);
+        e.emit_text("😀😀😀😀").unwrap();
+        assert!(e.limit_reached());
+        let out = String::from_utf8(e.finish().unwrap()).unwrap();
+        assert_eq!(out, "😀😀😀");
+    }
+
+    #[test]
+    fn char_limit_set_immediately_at_exact_count() {
+        let mut c = cfg();
+        c.limit_chars = Some(5);
+        let mut e = Emitter::new(Vec::new(), c);
+        e.emit_text("abcde").unwrap();
+        assert!(e.limit_reached());
+        assert_eq!(e.chars_written(), 5);
+    }
+
+    #[test]
+    fn emit_spaces_huge_count_does_not_panic() {
+        let mut e = Emitter::new(Vec::new(), cfg());
+        e.emit_text("A").unwrap();
+        e.emit_spaces(usize::MAX).unwrap();
+        e.emit_text("B").unwrap();
+        let out = String::from_utf8(e.finish().unwrap()).unwrap();
+        let mut expected = String::from("A");
+        expected.push_str(&" ".repeat(4096));
+        expected.push('B');
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn subst_ascii_semantics() {
+        let mut c = cfg();
+        c.subst = SubstMode::Some;
+        c.encoding = crate::encoding::Charset::Ascii;
+        let out = emit_with(c, |e| {
+            e.emit_text("€ä☃").unwrap();
+        });
+        assert_eq!(out, "EURae?");
     }
 }

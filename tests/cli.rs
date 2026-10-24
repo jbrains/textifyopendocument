@@ -1,3 +1,13 @@
+/*
+ * textifyopendocument: a fast converter from OpenDocument to plain text.
+ *
+ * Copyright (c) 2026 jbrains
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License,
+ * version 2 as published by the Free Software Foundation
+ */
+
 mod support;
 
 use std::process::Command;
@@ -78,5 +88,65 @@ fn limit_time_truncates() {
         stdout.chars().count() < 10_000,
         "expected early truncation, got {} chars",
         stdout.chars().count()
+    );
+}
+
+#[test]
+fn malformed_xml_exits_nonzero_but_keeps_partial_output() {
+    let xml = support::content_xml("<text:p>Hello</text:p><text:p>oops");
+    let zip = support::minimal_zip(&[("content.xml", xml.into_bytes())]);
+    let path = support::write_temp_file("cli-malformed.odt", &zip);
+    let out = bin().arg(&path).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("Hello"),
+        "partial output lost, got: {:?}",
+        stdout
+    );
+}
+
+#[test]
+fn truncated_xml_exits_nonzero() {
+    let xml = "<office:document><office:body><text:p>Hello</text:p><text:p>partial";
+    let zip = support::minimal_zip(&[("content.xml", xml.as_bytes().to_vec())]);
+    let path = support::write_temp_file("cli-truncated.odt", &zip);
+    let out = bin().arg(&path).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+}
+
+#[test]
+fn unknown_encoding_warns_and_uses_utf8() {
+    let xml = support::content_xml("<text:p>€ä☃</text:p>");
+    let zip = support::minimal_zip(&[("content.xml", xml.into_bytes())]);
+    let path = support::write_temp_file("cli-unknown-encoding.odt", &zip);
+    let out = bin().arg("--encoding=not-a-codeset").arg(&path).output().unwrap();
+    assert!(out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("warning"), "stderr: {}", stderr);
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "€ä☃\n");
+}
+
+#[test]
+fn ascii_encoding_substitutes_look_alikes() {
+    let xml = support::content_xml("<text:p>€ä☃</text:p>");
+    let zip = support::minimal_zip(&[("content.xml", xml.into_bytes())]);
+    let path = support::write_temp_file("cli-ascii.odt", &zip);
+    let out = bin().arg("--encoding=ascii").arg(&path).output().unwrap();
+    assert!(out.status.success());
+    assert_eq!(out.stdout, b"EURae?\n");
+}
+
+#[test]
+fn huge_text_c_attribute_does_not_panic() {
+    let xml = support::content_xml(
+        "<text:p>A<text:s text:c=\"18446744073709551615\"/>B</text:p>",
+    );
+    let zip = support::minimal_zip(&[("content.xml", xml.into_bytes())]);
+    let path = support::write_temp_file("cli-huge-c.odt", &zip);
+    let out = bin().arg("--limit-chars=10").arg(&path).output().unwrap();
+    assert!(out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stdout).chars().count() <= 10
     );
 }

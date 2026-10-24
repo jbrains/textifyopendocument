@@ -8,6 +8,7 @@
  * version 2 as published by the Free Software Foundation
  */
 
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,7 +48,7 @@ pub enum CliError {
     InvalidLimit(String),
 }
 
-pub fn parse_args(args: &[String]) -> Result<Action, CliError> {
+pub fn parse_args(args: &[OsString]) -> Result<Action, CliError> {
     let mut cfg = Config {
         input: PathBuf::new(),
         raw: false,
@@ -62,57 +63,65 @@ pub fn parse_args(args: &[String]) -> Result<Action, CliError> {
     let mut seen_filename = false;
 
     for arg in args {
-        if let Some(value) = arg.strip_prefix("--width=") {
-            let width = value
-                .parse::<i64>()
-                .map_err(|_| CliError::InvalidWidth(value.to_string()))?;
-            if width < 3 && width != -1 {
-                return Err(CliError::InvalidWidth(value.to_string()));
+        if let Some(text) = arg.to_str() {
+            if let Some(value) = text.strip_prefix("--width=") {
+                let width = value
+                    .parse::<i64>()
+                    .map_err(|_| CliError::InvalidWidth(value.to_string()))?;
+                if width < 3 && width != -1 {
+                    return Err(CliError::InvalidWidth(value.to_string()));
+                }
+                cfg.width = width;
+            } else if let Some(value) = text.strip_prefix("--output=") {
+                if value != "-" {
+                    cfg.output = Some(PathBuf::from(value));
+                }
+            } else if let Some(value) = text.strip_prefix("--encoding=") {
+                if value == "show" {
+                    return Ok(Action::ShowEncoding);
+                }
+                cfg.encoding = Some(value.to_string());
+            } else if let Some(value) = text.strip_prefix("--subst=") {
+                cfg.subst = match value {
+                    "none" => SubstMode::None,
+                    "some" => SubstMode::Some,
+                    "all" => SubstMode::All,
+                    other => return Err(CliError::InvalidSubst(other.to_string())),
+                };
+            } else if let Some(value) = text.strip_prefix("--limit-chars=") {
+                let n = value
+                    .parse::<usize>()
+                    .map_err(|_| CliError::InvalidLimit(value.to_string()))?;
+                cfg.limit_chars = Some(n);
+            } else if let Some(value) = text.strip_prefix("--limit-time=") {
+                let n = value
+                    .parse::<u64>()
+                    .map_err(|_| CliError::InvalidLimit(value.to_string()))?;
+                cfg.limit_time_ms = Some(n);
+            } else if text == "--raw" {
+                cfg.raw = true;
+            } else if text == "--raw-input" {
+                cfg.raw_input = true;
+            } else if text == "--force" {
+                // accepted and ignored, as the C tool does
+            } else if text == "--help" {
+                return Ok(Action::Help);
+            } else if text == "--version" {
+                return Ok(Action::Version);
+            } else if text.starts_with("--") {
+                return Err(CliError::UnknownOption(text.to_string()));
+            } else if !seen_filename {
+                cfg.input = PathBuf::from(arg);
+                seen_filename = true;
+            } else {
+                return Err(CliError::UnknownOption(text.to_string()));
             }
-            cfg.width = width;
-        } else if let Some(value) = arg.strip_prefix("--output=") {
-            if value != "-" {
-                cfg.output = Some(PathBuf::from(value));
-            }
-        } else if let Some(value) = arg.strip_prefix("--encoding=") {
-            if value == "show" {
-                return Ok(Action::ShowEncoding);
-            }
-            cfg.encoding = Some(value.to_string());
-        } else if let Some(value) = arg.strip_prefix("--subst=") {
-            cfg.subst = match value {
-                "none" => SubstMode::None,
-                "some" => SubstMode::Some,
-                "all" => SubstMode::All,
-                other => return Err(CliError::InvalidSubst(other.to_string())),
-            };
-        } else if let Some(value) = arg.strip_prefix("--limit-chars=") {
-            let n = value
-                .parse::<usize>()
-                .map_err(|_| CliError::InvalidLimit(value.to_string()))?;
-            cfg.limit_chars = Some(n);
-        } else if let Some(value) = arg.strip_prefix("--limit-time=") {
-            let n = value
-                .parse::<u64>()
-                .map_err(|_| CliError::InvalidLimit(value.to_string()))?;
-            cfg.limit_time_ms = Some(n);
-        } else if arg == "--raw" {
-            cfg.raw = true;
-        } else if arg == "--raw-input" {
-            cfg.raw_input = true;
-        } else if arg == "--force" {
-            // accepted and ignored, as the C tool does
-        } else if arg == "--help" {
-            return Ok(Action::Help);
-        } else if arg == "--version" {
-            return Ok(Action::Version);
-        } else if arg.starts_with("--") {
-            return Err(CliError::UnknownOption(arg.clone()));
         } else if !seen_filename {
+            // a non-UTF-8 argument is a filename, not an option
             cfg.input = PathBuf::from(arg);
             seen_filename = true;
         } else {
-            return Err(CliError::UnknownOption(arg.clone()));
+            return Err(CliError::UnknownOption(arg.to_string_lossy().into_owned()));
         }
     }
 
@@ -126,8 +135,22 @@ pub fn parse_args(args: &[String]) -> Result<Action, CliError> {
 mod tests {
     use super::*;
 
-    fn s(v: &[&str]) -> Vec<String> {
-        v.iter().map(|x| x.to_string()).collect()
+    fn s(v: &[&str]) -> Vec<OsString> {
+        v.iter().map(|x| OsString::from(x)).collect()
+    }
+
+    #[test]
+    fn non_utf8_filename_is_accepted() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            let name = OsString::from_vec(vec![b'd', 0xFF, b'.', b'o', b'd', b't']);
+            let parsed = parse_args(&[name.clone()]).unwrap();
+            match parsed {
+                Action::Run(cfg) => assert_eq!(cfg.input, PathBuf::from(name)),
+                other => panic!("expected Run, got {:?}", other),
+            }
+        }
     }
 
     fn default_config() -> Config {

@@ -25,34 +25,60 @@ impl From<std::io::Error> for SourceError {
     }
 }
 
-pub fn open_content_xml(config: &Config) -> Result<Box<dyn BufRead>, SourceError> {
+/// An opened input. The zip variant keeps the archive alive so its
+/// `content.xml` entry can be streamed (decompressed lazily) instead of
+/// being buffered in memory.
+pub struct OpenedSource {
+    kind: SourceKind,
+    name: String,
+}
+
+enum SourceKind {
+    Zip(zip::ZipArchive<std::fs::File>),
+    Raw(BufReader<std::fs::File>),
+}
+
+impl OpenedSource {
+    /// Borrow a `BufRead` over the `content.xml` entry. For zips this
+    /// streams the entry; for raw input it reads the file directly.
+    pub fn content_xml(&mut self) -> Result<Box<dyn BufRead + '_>, SourceError> {
+        match &mut self.kind {
+            SourceKind::Raw(reader) => Ok(Box::new(reader as &mut dyn BufRead)),
+            SourceKind::Zip(archive) => {
+                let entry = archive.by_name("content.xml").map_err(|e| match e {
+                    zip::result::ZipError::FileNotFound => {
+                        SourceError::NotOpenDocument(self.name.clone())
+                    }
+                    other => SourceError::Io(other.into()),
+                })?;
+                Ok(Box::new(BufReader::new(entry)))
+            }
+        }
+    }
+}
+
+pub fn open_source(config: &Config) -> Result<OpenedSource, SourceError> {
+    let name = config.input.display().to_string();
     let file = std::fs::File::open(&config.input)?;
 
     if config.raw_input {
-        return Ok(Box::new(BufReader::new(file)));
+        return Ok(OpenedSource {
+            kind: SourceKind::Raw(BufReader::new(file)),
+            name,
+        });
     }
 
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| match e {
+    let archive = zip::ZipArchive::new(file).map_err(|e| match e {
         zip::result::ZipError::FileNotFound | zip::result::ZipError::InvalidArchive(_) => {
-            SourceError::NotOpenDocument(config.input.display().to_string())
+            SourceError::NotOpenDocument(name.clone())
         }
         other => SourceError::Io(other.into()),
     })?;
 
-    let mut entry = archive.by_name("content.xml").map_err(|e| match e {
-        zip::result::ZipError::FileNotFound => {
-            SourceError::NotOpenDocument(config.input.display().to_string())
-        }
-        other => SourceError::Io(other.into()),
-    })?;
-
-    // Buffer the entry: ZipFile borrows the archive, so it cannot outlive it
-    // as a Box<dyn BufRead>. Decompression still happens lazily via zip;
-    // parsing still streams over the buffer.
-    let mut bytes = Vec::new();
-    use std::io::Read;
-    entry.read_to_end(&mut bytes)?;
-    Ok(Box::new(BufReader::new(std::io::Cursor::new(bytes))))
+    Ok(OpenedSource {
+        kind: SourceKind::Zip(archive),
+        name,
+    })
 }
 
 #[cfg(test)]
@@ -107,7 +133,7 @@ mod tests {
         }
     }
 
-    fn read_all(mut r: Box<dyn BufRead>) -> String {
+    fn read_all(mut r: Box<dyn BufRead + '_>) -> String {
         let mut s = String::new();
         r.read_to_string(&mut s).unwrap();
         s
@@ -119,21 +145,24 @@ mod tests {
             "doc.odt",
             &build_zip(&[("content.xml", b"hello content")]),
         );
-        let r = open_content_xml(&config(&path, false)).unwrap();
+        let mut src = open_source(&config(&path, false)).unwrap();
+        let r = src.content_xml().unwrap();
         assert_eq!(read_all(r), "hello content");
     }
 
     #[test]
     fn raw_input_reads_file_directly() {
         let path = write_bytes("doc.fodt", b"raw xml bytes");
-        let r = open_content_xml(&config(&path, true)).unwrap();
+        let mut src = open_source(&config(&path, true)).unwrap();
+        let r = src.content_xml().unwrap();
         assert_eq!(read_all(r), "raw xml bytes");
     }
 
     #[test]
     fn missing_content_xml_is_not_open_document() {
         let path = write_bytes("no-content.odt", &build_zip(&[("mimetype", b"x")]));
-        let err = match open_content_xml(&config(&path, false)) {
+        let mut src = open_source(&config(&path, false)).unwrap();
+        let err = match src.content_xml() {
             Err(e) => e,
             Ok(_) => panic!("expected error"),
         };
@@ -143,7 +172,7 @@ mod tests {
     #[test]
     fn non_zip_is_not_open_document() {
         let path = write_bytes("plain.txt", b"this is not a zip");
-        let err = match open_content_xml(&config(&path, false)) {
+        let err = match open_source(&config(&path, false)) {
             Err(e) => e,
             Ok(_) => panic!("expected error"),
         };
