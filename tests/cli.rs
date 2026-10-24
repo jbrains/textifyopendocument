@@ -36,3 +36,47 @@ fn garbage_file_exits_nonzero_with_filename() {
         stderr
     );
 }
+
+#[test]
+fn limit_chars_truncates() {
+    let xml = support::content_xml("<text:p>abcdefgh</text:p>");
+    let zip = support::minimal_zip(&[("content.xml", xml.into_bytes())]);
+    let path = support::write_temp_file("cli-limit.odt", &zip);
+    let out = bin().arg("--limit-chars=5").arg(&path).output().unwrap();
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "abcde");
+}
+
+#[test]
+fn limit_time_truncates() {
+    let mut body = String::from("<table:table>");
+    for r in 0..20_000 {
+        body.push_str("<table:table-row>");
+        for c in 0..4 {
+            body.push_str(&format!(
+                "<table:table-cell><text:p>cell {r}-{c}</text:p></table:table-cell>"
+            ));
+        }
+        body.push_str("</table:table-row>");
+    }
+    body.push_str("</table:table>");
+    let xml = support::content_xml(&body);
+    let zip = support::minimal_zip(&[("content.xml", xml.into_bytes())]);
+    let path = support::write_temp_file("cli-limit-time.ods", &zip);
+
+    let started = std::time::Instant::now();
+    let out = bin().arg("--limit-time=1").arg(&path).output().unwrap();
+    let elapsed = started.elapsed();
+    assert!(out.status.success());
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "took {:?}",
+        elapsed
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.chars().count() < 1000,
+        "expected early truncation, got {} chars",
+        stdout.chars().count()
+    );
+}
