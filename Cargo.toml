@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2021"
 license = "GPL-2.0-only"
 description = "Fast OpenDocument to plain text converter for previews"
+repository = "https://codeberg.org/jbrains/textifyopendocument"
+homepage = "https://codeberg.org/jbrains/textifyopendocument"
+documentation = "https://codeberg.org/jbrains/textifyopendocument"
+keywords = ["odt", "ods", "odp", "opendocument", "preview", "cli"]
+categories = ["command-line-utilities", "text-processing"]
+readme = "README.md"
+exclude = ["odt2txt/**", "acceptance-tests/**", "docs/**", "packaging/**"]
 
 [dependencies]
 quick-xml = "0.37"

@@ -1,0 +1,31 @@
+# Maintainer: jbrains
+
+pkgname=textifyopendocument
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Fast OpenDocument (odt/ods/odp) to plain text converter for previews"
+arch=('x86_64' 'aarch64')
+url="https://codeberg.org/jbrains/textifyopendocument"
+license=('GPL2')
+makedepends=('cargo')
+source=("https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
+b2sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  cargo build --locked --release
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  cargo test --locked --release
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
+  install -Dm644 "textifyopendocument.1" \
+    "$pkgdir/usr/share/man/man1/textifyopendocument.1"
+  install -Dm644 "LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -11,6 +11,41 @@ regular-expression pipeline with streaming XML parsing: one linear pass
 instead of ~55 quadratic ones. A 20,000-row spreadsheet that takes the
 original over 15 minutes converts in well under a second.
 
+## Installation
+
+From crates.io:
+
+```
+cargo install textifyopendocument
+```
+
+From source:
+
+```
+git clone https://codeberg.org/jbrains/textifyopendocument
+cd textifyopendocument
+cargo build --release        # binary at target/release/textifyopendocument
+```
+
+Arch Linux (AUR):
+
+```
+paru -S textifyopendocument
+```
+
+Nix:
+
+```
+nix run git+https://codeberg.org/jbrains/textifyopendocument
+```
+
+Homebrew:
+
+```
+brew tap jbrains/homebrew-tap https://codeberg.org/jbrains/homebrew-tap
+brew install textifyopendocument
+```
+
 ## Usage
 
 ```
