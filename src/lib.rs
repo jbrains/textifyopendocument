@@ -9,5 +9,6 @@
  */
 
 pub mod args;
+pub mod emit;
 pub mod subst;
 
