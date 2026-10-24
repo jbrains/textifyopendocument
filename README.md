@@ -90,12 +90,6 @@ the truncated mode, use a line like:
 textifyopendocument --limit-chars=5000 "${FILE_PATH}" && exit 5
 ```
 
-## Acceptance test
-
-The Final Boss spreadsheet lives in `acceptance-tests/` (gitignored, not
-committed). It is the gate for the rewrite: full mode must finish in seconds,
-and preview mode must respect its limit.
-
 ## Licence
 
 GPL, version 2. See LICENSE.
