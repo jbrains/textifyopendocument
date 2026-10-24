@@ -11,6 +11,7 @@
 pub mod args;
 pub mod convert;
 pub mod emit;
+pub mod encoding;
 pub mod source;
 pub mod subst;
 

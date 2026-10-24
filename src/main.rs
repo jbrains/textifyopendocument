@@ -22,8 +22,7 @@ fn main() {
             std::process::exit(0);
         }
         Ok(Action::ShowEncoding) => {
-            // placeholder; Task 8 replaces this with real codeset detection
-            println!("UTF-8");
+            println!("{}", textifyopendocument::encoding::detect_codeset().name());
             std::process::exit(0);
         }
         Ok(Action::Run(_config)) => {
