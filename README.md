@@ -27,10 +27,12 @@ cd textifyopendocument
 cargo build --release        # binary at target/release/textifyopendocument
 ```
 
-Arch Linux (AUR):
+Arch Linux (from the PKGBUILD in this repo; AUR submission pending):
 
 ```
-paru -S textifyopendocument
+git clone https://codeberg.org/jbrains/textifyopendocument
+cd textifyopendocument/packaging/aur
+makepkg -si
 ```
 
 Nix:

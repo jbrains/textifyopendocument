@@ -11,7 +11,8 @@
     {
       packages = forAllSystems (system: {
         default =
-          nixpkgs.legacyPackages.${system}.callPackage ./packaging/nix/package.nix { };
+          nixpkgs.legacyPackages.${system}.callPackage ./packaging/nix/package.nix
+            { src = self; };
       });
     };
 }

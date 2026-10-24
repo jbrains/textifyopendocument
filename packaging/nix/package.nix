@@ -1,22 +1,30 @@
-{ lib, rustPlatform, fetchFromGitea }:
+{ lib, rustPlatform, fetchFromGitea, src ? null }:
 
-rustPlatform.buildRustPackage rec {
-  pname = "textifyopendocument";
-  version = "0.1.0";
+let
+  version = "0.1.1";
 
-  src = fetchFromGitea {
+  # The flake passes `src = self`, so no hash is needed there. For a
+  # future nixpkgs PR (where the source is fetched independently), fill
+  # this hash with the value the first `nix build` reports.
+  realSrc = if src == null then fetchFromGitea {
     domain = "codeberg.org";
     owner = "jbrains";
     repo = "textifyopendocument";
     rev = "v${version}";
-    # Replace after the tag exists:
-    #   nix-prefetch-url --unpack \
-    #     https://codeberg.org/jbrains/textifyopendocument/archive/v0.1.0.tar.gz
     hash = lib.fakeHash;
-  };
+  } else src;
 
-  # Replace with the value `nix build` reports after the first failed build.
-  cargoHash = lib.fakeHash;
+in rustPlatform.buildRustPackage {
+  pname = "textifyopendocument";
+  inherit version;
+
+  src = realSrc;
+
+  # Using the committed Cargo.lock avoids a vendored-dependencies hash
+  # entirely.
+  cargoLock = {
+    lockFile = ./../../Cargo.lock;
+  };
 
   meta = with lib; {
     description = "Fast OpenDocument (odt/ods/odp) to plain text converter for previews";
