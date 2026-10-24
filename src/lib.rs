@@ -9,6 +9,7 @@
  */
 
 pub mod args;
+pub mod convert;
 pub mod emit;
 pub mod source;
 pub mod subst;
