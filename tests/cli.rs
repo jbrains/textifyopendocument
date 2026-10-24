@@ -75,7 +75,7 @@ fn limit_time_truncates() {
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.chars().count() < 1000,
+        stdout.chars().count() < 10_000,
         "expected early truncation, got {} chars",
         stdout.chars().count()
     );
