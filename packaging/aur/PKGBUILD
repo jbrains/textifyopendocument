@@ -9,7 +9,7 @@ url="https://github.com/jbrains/textifyopendocument"
 license=('GPL2')
 makedepends=('cargo')
 source=("https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
-b2sums=('10b627f1bfbcd3f13b836f94d1e9908add669c74efb473c0b09eeddef9a77b09f73363987e917b924c9a9249f4fdcf40d9d5307192b92057c521cfa6036ab4dd')
+b2sums=('cfced46c601e8897aa01f128028019c0cac4e8c9d58084ce90a7682e37687d72c485cd208758110a130b15e64f9651b6caf0876f4df21bca4d115e89902968b8')
 
 build() {
   cd "$pkgname-$pkgver"

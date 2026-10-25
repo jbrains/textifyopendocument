@@ -1,4 +1,4 @@
-{ lib, rustPlatform, fetchFromGithub, src ? null }:
+{ lib, rustPlatform, fetchFromGitHub, src ? null }:
 
 let
   version = "0.1.2";
@@ -6,8 +6,7 @@ let
   # The flake passes `src = self`, so no hash is needed there. For a
   # future nixpkgs PR (where the source is fetched independently), fill
   # this hash with the value the first `nix build` reports.
-  realSrc = if src == null then fetchFromGithub {
-    domain = "github.com";
+  realSrc = if src == null then fetchFromGitHub {
     owner = "jbrains";
     repo = "textifyopendocument";
     rev = "v${version}";
