@@ -7,7 +7,7 @@ let
   # future nixpkgs PR (where the source is fetched independently), fill
   # this hash with the value the first `nix build` reports.
   realSrc = if src == null then fetchFromGitea {
-    domain = "codeberg.org";
+    domain = "github.com";
     owner = "jbrains";
     repo = "textifyopendocument";
     rev = "v${version}";
@@ -28,7 +28,7 @@ in rustPlatform.buildRustPackage {
 
   meta = with lib; {
     description = "Fast OpenDocument (odt/ods/odp) to plain text converter for previews";
-    homepage = "https://codeberg.org/jbrains/textifyopendocument";
+    homepage = "https://github.com/jbrains/textifyopendocument";
     license = licenses.gpl2Only;
     mainProgram = "textifyopendocument";
     maintainers = [ ]; # add yourself after joining the nixpkgs maintainers list

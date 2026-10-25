@@ -22,7 +22,7 @@ cargo install textifyopendocument
 From source:
 
 ```
-git clone https://codeberg.org/jbrains/textifyopendocument
+git clone https://github.com/jbrains/textifyopendocument
 cd textifyopendocument
 cargo build --release        # binary at target/release/textifyopendocument
 ```
@@ -30,7 +30,7 @@ cargo build --release        # binary at target/release/textifyopendocument
 Arch Linux (from the PKGBUILD in this repo; AUR submission pending):
 
 ```
-git clone https://codeberg.org/jbrains/textifyopendocument
+git clone https://github.com/jbrains/textifyopendocument
 cd textifyopendocument/packaging/aur
 makepkg -si
 ```
@@ -38,13 +38,13 @@ makepkg -si
 Nix:
 
 ```
-nix run git+https://codeberg.org/jbrains/textifyopendocument
+nix run git+https://github.com/jbrains/textifyopendocument
 ```
 
 Homebrew:
 
 ```
-brew tap jbrains/homebrew-tap https://codeberg.org/jbrains/homebrew-tap
+brew tap jbrains/homebrew-tap https://github.com/jbrains/homebrew-tap
 brew install textifyopendocument
 ```
 
