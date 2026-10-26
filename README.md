@@ -27,7 +27,13 @@ cd textifyopendocument
 cargo build --release        # binary at target/release/textifyopendocument
 ```
 
-Arch Linux (from the PKGBUILD in this repo; AUR submission pending):
+Arch Linux (from the AUR, with an AUR helper such as `paru`):
+
+```
+paru -S textifyopendocument
+```
+
+Or build from the PKGBUILD in this repo:
 
 ```
 git clone https://github.com/jbrains/textifyopendocument
@@ -38,7 +44,7 @@ makepkg -si
 Nix:
 
 ```
-nix run git+https://github.com/jbrains/textifyopendocument
+nix run github:jbrains/textifyopendocument
 ```
 
 Homebrew:
